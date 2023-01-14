@@ -1,5 +1,4 @@
-# feminicides-italy
+# How do Italian Newspapers talk about femicides?
 
-## Summer Project
+## Repository for my Master's thesis 
 
-I want to collect data on feminicides in Italy and visualize them 

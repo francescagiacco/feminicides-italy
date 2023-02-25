@@ -1,0 +1,42 @@
+---
+title: "Cleaning"
+author: "Francesca Giacco"
+date: "2023-02-22"
+output: html_document
+---
+
+```{r}
+#load packages 
+library(tidyverse)
+library(tidyr)
+```
+
+```{r}
+#lead data 
+
+d20<- read_csv("df2_2020.csv")
+head(d20)
+
+v<- paste("l_", letters, sep="")
+pattern<- "s:"
+
+d0<-d20 %>%  str_remove(links, pattern)
+
+
+d1<- d20 %>% separate(links, v,  "http" )
+
+d2<-d1 %>%
+  select(-c(l_a)) %>% 
+  pivot_longer(
+    cols = starts_with("l_"),
+    names_to = "article",
+    names_prefix = "wk",
+    values_to = "link",
+    values_drop_na = TRUE
+  )
+
+d3<- d2 %>%  separate(link, c("link", "title"),  ", " )
+
+head(d3)
+```
+

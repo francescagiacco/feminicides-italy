@@ -20,10 +20,11 @@ head(d20)
 v<- paste("l_", letters, sep="")
 pattern<- "s:"
 
-d0<-d20 %>%  str_remove(links, pattern)
+d0<-str_remove(links, pattern)
 
 
-d1<- d20 %>% separate(links, v,  "http" )
+d1<- d20 %>% separate(links, v,  "'https?://" )
+
 
 d2<-d1 %>%
   select(-c(l_a)) %>% 
@@ -33,10 +34,13 @@ d2<-d1 %>%
     names_prefix = "wk",
     values_to = "link",
     values_drop_na = TRUE
-  )
+  ) 
 
-d3<- d2 %>%  separate(link, c("link", "title"),  ", " )
+d3<- d2 %>%  separate(link, c("link", "title", "newspaper"),  "('|\"), " )
 
 head(d3)
+
+write.csv(d3, "d3.csv", row.names=FALSE)
+
 ```
 

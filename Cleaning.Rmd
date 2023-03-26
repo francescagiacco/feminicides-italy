@@ -13,17 +13,19 @@ library(forcats)
 library(stm)
 library(quanteda)
 library(quanteda.textstats)
+library(stringr)
 ```
 
 ```{r}
-#lead data 
+#load data 
 
+#scraped articles
 d20<- read_csv("df2021.csv")
 head(d20)
 
+
+#get one line for every article
 v<- paste("l_", letters, sep="")
-
-
 
 d1<- d20 %>% separate(links, v,  "'https?://" )%>% 
   mutate(victim=tolower(victim))
@@ -43,10 +45,11 @@ d3<- d2 %>%  separate(link, c("link", "title", "newspaper"),  "('|\"), " )
 
 head(d3)
 
+#save dataset
 write.csv(d3, "d3.csv", row.names=FALSE)
 
 
-#dataset with info about femicide 
+#dataset with info about femicide - "Non una di meno"
 info21<- read_csv("data2021.csv")
 
 clean_info<- info21 %>%  
@@ -62,6 +65,7 @@ data21<- read.csv("data2021-new2.csv", sep=';' , header=TRUE) %>%
 d4<- read.csv("d4.csv", sep=';' , header=T)
   
 
+#merge the two datasets  by victim name 
 merged2<- merge(data21, d4, by="victim", all.x=T) %>% 
         rename("date"="Data.morte") %>% 
         mutate(date= as.Date(date, format = "%d-%b-%Y"))  %>% 
@@ -69,216 +73,60 @@ merged2<- merge(data21, d4, by="victim", all.x=T) %>%
         mutate(newspaper=gsub('[[:punct:] ]+', ' ',newspaper))
           
 
-
 merged3<- merged2 %>% 
         mutate(link= ifelse(is.na(link), Link.fonte.media, link))
 
+#save dataset - this dataset contains all the links, not the article texts 
+#
 
 write.csv(merged3, "merged.csv", row.names=FALSE)
 
 
 ```
+I have added the texts to all the links (manually). In a later stage or for reproduction purpose, better to use the package "Newsplease" on Python. 
+The new file is called "merged-merged.csv"
 
-
-
-#Summary statistics of dataset with info 
 ```{r}
+datac<- read.csv("merged-merged.csv")
 
-#n of femicides per region
+colnames(datac)
 
-a<- data21 %>%count(Regione) %>% 
-  mutate(Regione = fct_reorder(as.factor(Regione), n)) %>% 
-  ggplot( aes(x=n, y=Regione))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Number of femicides per region", x="Number of femicides" , y="Region")
-  
-ggsave("fem_per_reg.png" ,plot= a, device="png", width=5, height=5 )
-
-
-#origin of victim
-  
-a<- data21 %>%count(Paese.di.origine.persona.uccisa) %>% 
-mutate(origin = fct_reorder(as.factor(Paese.di.origine.persona.uccisa), n))%>% 
-  ggplot( aes(x=n, y=origin))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Ethnicity of the victim", x="Number of victims" , y="Ethnicity")
-
-a
-  
-ggsave("ethn_victim.png" ,plot= a, device="png", width=5, height=5 )
-
-
-
-#origin killer
-
-a<- data21 %>%count(Paese.di.origine.presunt..colpevole) %>% 
-  mutate(origin = fct_reorder(as.factor(Paese.di.origine.presunt..colpevole), n))%>% 
-  ggplot( aes(x=n, y=origin))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Ethnicity of the killer", x="Number of culprits" , y="Ethnicity")
-
-a
-  
-ggsave("ethn_kill.png" ,plot= a, device="png", width=5, height=5 )
-
-
-
-#relationship to victim
-
-a<- data21 %>%count(Relazione.con.la.persona.uccisa..semplificata.) %>% 
-mutate(rel= fct_reorder(as.factor(Relazione.con.la.persona.uccisa..semplificata.), n))%>% 
-  ggplot( aes(x=n, y=rel))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Relationship to the victim", x="Count" , y="Relationship")
-
-a
-  
-ggsave("relationship.png" ,plot= a, device="png", width=5, height=5 )
-
-
-
-#how was the victim killed
-
-a<- data21 %>%count(Causa.di.morte) %>% 
-mutate(cause= fct_reorder(as.factor(Causa.di.morte), n))%>% 
-  ggplot( aes(x=n, y=cause))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Cause of death", x="Count" , y="Cause")
-
-a
-  
-ggsave("cause.png" ,plot= a, device="png", width=5, height=5 )
-
-
-
-
-#justification
-
-table(data21$Giustificazione..movente) 
-
-  
-ggsave("justification.png" ,plot= a, device="png", width=5, height=5 )
-
-```
-# Summary statistics of datset with newspapers
-```{r}
-data_complete<-read_csv("merged - merged.csv") %>% 
+datac<- datac %>% 
+  mutate(text=str_replace_all(text, "[\r\n]" , " ")) %>% 
   subset((!is.na(text)))
-
-
-
-
-#average n of articles per victim
-data_complete %>%  
-  count(victim) %>% 
-  mutate(n1= n-1) %>% 
-  subset(n1>0) %>% 
-  summarise(mean(n1))
-
-
-# share of local newspapers
-sum(data_complete$local)/186
-
-#journalists 
-j<-data_complete %>%  subset((!is.na(journalist))) %>% 
-  select(journalist, gender.j) %>% 
-  count(gender.j) %>%  
-  mutate(gender= c("M", "W", "1 W, 1 M", "2 W", "2 M, 1 W" )) %>% 
+ 
+  
+datac <- with(datac, datac[!(text == "" | is.na(text)), ])
   
 
-83/186
-
-table(j$gender.j)
-
-ggplot( j, aes(x=gender, y=n))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Gender of journalist", x="Count" , y="Gender")
-
-
-data_complete %>% count(picture)
-
-data_complete$content
-v<- c("p1", "p2", "p3", "p4")
-
-
-cont<- data_complete %>% 
-  select(content) %>% 
-  separate(content, v,  ";" ) %>% 
-
-pivot_longer(
-    cols = starts_with("p"),
-    names_to = "cont",
-    names_prefix = "wk",
-    values_to = "content",
-    values_drop_na = TRUE
-  ) %>% 
-  mutate(content=gsub('[[:punct:] ]+', ' ',content))%>% 
-  count(content) %>%  
-  subset(n>2)
+write.csv(datac, "datac.csv", row.names=FALSE)
 
 
 
-ggplot( cont, aes(x=content, y=n))+ geom_bar(stat='identity', fill="darkorchid4") +
-    geom_text(aes(label=n), hjust=-0.2, size=3)+
-    theme_minimal() + labs(title="Gender of journalist", x="Count" , y="Gender")
-
-
-
-#topic modeling
-
-texts<- data_complete %>% 
-  mutate(text=tolower(text)) %>% 
-  mutate(text=gsub('[[:punct:] ]+', ' ',text))%>% 
-  rowwise() 
-
-dfm_prep<- function(x) { 
-  x$text%>% 
-  tokens(remove_punct = TRUE, remove_numbers = TRUE) %>%
-  tokens_tolower() %>%
-  tokens(remove_punc=TRUE) %>% 
-  tokens_remove(stopwords("Italian"))}
-
-
-dfmm<- dfm_prep(texts) %>%
-  tokens_wordstem(language = quanteda_options("language_stemmer")) %>% 
-  tokens_remove(c("s")) %>% 
-  dfm() %>% 
-  dfm_trim(min_termfreq = 5)
-
-dfmm
-
-freq<- dfmm %>% textstat_frequency() %>% head(20)
-freq$feature<- factor(freq$feature, levels=freq$feature)
-
-a<- ggplot(freq, aes(x=frequency, y=feature, fill=docfreq)) +
- geom_col() + ggtitle("Most frequent words in the articles")
-a
-
-ggsave("freq_w.png", a,  width=6, height=6)
 ```
+
+
+After having added the victim blaming scores, I need to clean the column and keep only the score. 
 
 ```{r}
-#try STM
 
-processed <- textProcessor(texts$text, metadata = texts)
+dws<-read_csv("datawscores.csv")
 
-out <- prepDocuments(processed$documents, processed$vocab, processed$meta)
+colnames(dws)
 
-docs <- out$documents
-vocab <- out$vocab
-meta <-out$meta
+dws<- dws %>% 
+ mutate(ass_blame= as.numeric(str_extract(ass_blame, "[0-9].[0-9]+"))) %>% 
+   mutate(vict_blame= as.numeric(str_extract(vict_blame, "[0-9].[0-9]+")))
 
-PrevFit <- stm(documents = out$documents, vocab = out$vocab, 
-               K = 5, prevalence =~ text ,
-                      max.em.its =75 , data = out$meta, gamma.prior='L1',
-                       init.type = "Spectral", 
-               seed=TRUE)
+#check that it is numeric
+class(dws$ass_blame)
 
-save(PrevFit, file = "model.RData")
-load("model.RData")
-
-labelTopics(PrevFit)
-labelTopics(PrevFit, c(1:20))
+#save dataset with clean scores
+write.csv(dws, "dws_clean.csv", row.names=FALSE)
 
 ```
+
+
+
+
 

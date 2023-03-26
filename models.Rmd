@@ -1,0 +1,31 @@
+---
+title: "Models"
+author: "Francesca Giacco"
+date: "2023-03-26"
+output: html_document
+---
+```{r}
+#load packages 
+library(tidyverse)
+library(ggplot2)
+```
+
+
+```{r}
+#load data 
+data<- read_csv("dws_clean.csv")
+head(data)
+
+ggplot(data, aes(x=ass_blame, y=vict_blame)) + geom_point() + geom_smooth(method = "lm")
+
+data<- data %>% 
+  mutate(vict_blamer=round(vict_blame, 2))
+
+table(data$vict_blamer)
+  
+
+```
+```{r}
+
+```
+

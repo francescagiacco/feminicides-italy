@@ -93,11 +93,11 @@ colnames(datac)
 
 datac<- datac %>% 
   mutate(text=str_replace_all(text, "[\r\n]" , " ")) %>% 
-  subset((!is.na(text)))
- 
+  subset((!is.na(text))) %>% 
+  mutate(tit=str_replace_all(title, "[\r\n]" , " ")) 
   
 datac <- with(datac, datac[!(text == "" | is.na(text)), ])
-  
+datac <- with(datac, datac[!(tit == "" | is.na(tit)), ]) 
 
 write.csv(datac, "datac.csv", row.names=FALSE)
 
@@ -109,20 +109,61 @@ write.csv(datac, "datac.csv", row.names=FALSE)
 After having added the victim blaming scores, I need to clean the column and keep only the score. 
 
 ```{r}
-
-dws<-read_csv("datawscores.csv")
+dws<-read_csv("datawscores2.csv")
 
 colnames(dws)
 
 dws<- dws %>% 
- mutate(ass_blame= as.numeric(str_extract(ass_blame, "[0-9].[0-9]+"))) %>% 
-   mutate(vict_blame= as.numeric(str_extract(vict_blame, "[0-9].[0-9]+")))
+ mutate(tit_vb= as.numeric(str_extract(tit_vb, "[0-9].[0-9]+"))) %>% 
+   mutate(text_vb= as.numeric(str_extract(text_vb, "[0-9].[0-9]+")))
 
 #check that it is numeric
 class(dws$ass_blame)
 
 #save dataset with clean scores
 write.csv(dws, "dws_clean.csv", row.names=FALSE)
+```
+
+
+# prepare data to use the model at sentence level. 
+```{r}
+
+n<-c(1:100)
+
+v<- paste("n_", n, sep="")
+
+sent_datac<- datac %>% separate(text, v,  "\\." )
+ 
+
+sent_datac<-sent_datac %>%
+  pivot_longer(
+    cols = starts_with("n_"),
+    names_to = "code",
+    names_prefix = "wk",
+    values_to = "sentence",
+    values_drop_na = TRUE
+  ) 
+
+sent_datac <- with(sent_datac, sent_datac[!(sentence == "" | is.na(sentence)), ])
+
+sent_datac<- sent_datac %>% 
+             mutate(n_char= nchar(sentence)) %>% 
+             subset( n_char>34)
+            
+
+nchar(sent_datac$sentence[7])
+                   
+#save dataset
+write.csv(sent_datac, "datac.csv", row.names=FALSE)
+
+
+
+
+```
+
+Now that I have a score for every sentence, mean over each article. 
+
+```{r}
 
 ```
 

@@ -1,0 +1,158 @@
+---
+title: "UNew scores"
+author: "Francesca Giacco"
+date: "2023-04-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#
+library(tidyverse)
+library(scales)
+library(ggplot2)
+library(gridExtra)
+
+```
+
+```{r}
+data<- read_csv("labelcomplete.csv")
+max_vb<- data[which.max(data$vb_manual),]
+max_vb$link
+data<- data %>%
+  mutate(vb_3_class = ifelse(vb_manual>=5, 1,
+  ifelse (vb_manual <1, 0, 0.5))) %>%
+  mutate(vb_bin = ifelse(vb_manual>=5, 1, 0)) %>%
+  mutate(vb_3_2 = ifelse(vb_manual>5, 2,
+  ifelse (vb_manual <3, 0, 1))) %>%
+  mutate(vb_norm= rescale(vb_manual))
+
+```
+
+```{r}
+#distribution plots (Fig 1)
+
+data1 <- data %>%  
+  pivot_longer(cols=c(vb_norm, vb_3_class, vb_bin ), names_to = "score_type", values_to = "score") %>% 
+  mutate( score_type=factor(score_type))
+
+#change labels for the plot 
+new_labels <- c(vb_norm = "VB Normalized", 
+                vb_3_class = "VB 3-Class", 
+                vb_bin = "VB Binary")
+
+#plot facets according to score type
+
+d<- ggplot(data1, aes(x=score, y =..count.. , fill=score_type )) + 
+  geom_bar(stat = "count", color="red3", fill="lightpink2") + 
+  theme_bw() + labs(title="Distribution of manual scores", x ="Scores ", y="Count") + 
+  facet_wrap(~score_type, ncol=3, labeller = labeller(score_type = new_labels))+ 
+  theme(legend.position="none")
+
+d
+
+
+ggsave("images/distributionmanualscores_facets.png", d, height =  3, width= 6)
+
+
+colnames(data1)
+
+```
+
+```{r}
+#correlation between model and manual scores (Fig 2)
+data_piv<- data %>% subset(!is.na(vb_manual)) %>% 
+          mutate(sentence_vb= as.numeric(str_extract(sentence_vb, "[0-9].[0-9]+"))) 
+          
+
+
+
+table(data_piv$sentence_vb)
+
+#correlation between model and manual output
+b<- ggplot(data_piv, aes(y=vb_norm, x=sentence_vb)) + geom_point (alpha=0.4) + geom_smooth(method = "lm", color="red3", fill="#FF6666") + theme_bw() + labs(title="Correlation between maual and model scores",x ="Scores given by model", y = "Manual scores")
+
+b
+
+#ggsave("images/corr_scores.png", b, height =  5, width= 5)
+
+
+#correlation without model outputs= 0
+
+nozero<- data_piv %>% 
+  filter(vb_manual>0)
+
+a<- ggplot(nozero, aes(y=vb_norm, x=sentence_vb)) + geom_point (alpha=0.4) + geom_smooth(method = "lm", color="red3", fill="#FF6666") + theme_bw() + labs(title="Correlation between manual and model scores",x ="Scores given by model", y = "Manual scores (without scores=0)")
+
+a
+
+#ggsave("images/corr_scores_nozero.png", a, height =  5, width= 5)
+
+
+#save them together 
+c<- grid.arrange(b, a, ncol = 2)
+
+ggsave("images/combined_correlation_plots.png", c,  width = 8, height =4)
+```
+
+
+```{r}
+#Distribution (Fig 3)
+
+
+d<- ggplot(data_piv, aes(x=vb_manual )) + geom_bar(fill="red3") + theme_bw() + labs(title="Distribution of manual scores",x ="Scores ")
+
+d
+
+ggsave("images/distr_manual.png", d, height =  4.5, width= 6)
+
+
+
+#pivoted density
+
+data2<- data_piv %>% pivot_longer(cols=c(vb_norm, sentence_vb ), names_to = "score_type", values_to = "score") #, vb_3_1, vb_bin
+a<- ggplot(data2, aes(x=score, fill=score_type)) + 
+  geom_density(alpha=.3) + 
+  theme_bw() + 
+  labs(title="Distribution of manual and model scores",x ="Scores ", y = "Density", fill = "Score type")+
+  scale_fill_manual(values = c("turquoise4", "red3"), labels = c("Model score", "Manual score"))
+ #scale_color_manual(values = c("forestgreen", "red3"))
+
+a
+
+ggsave("images/densittplot.png", a, height =  4.5, width= 6)
+
+```
+
+```{r}
+#VB per category (Fig 5)
+
+
+b<- data_piv %>% group_by(victim_origin)  %>% summarise(mean(vb_manual))
+
+a<- ggplot(b, aes(x=victim_origin, y=`mean(vb_manual)`))+ geom_bar(stat="identity", fill="rosybrown2", color="red3", alpha=0.9, width=0.4)+  labs(title="Victim blaming by victim origin",x ="Victim origin ", y = "Average victim blaming")+ theme_bw() + scale_x_discrete(labels=c("Italian", "Non Italian")) + ylim(0, 1.3)
+
+a
+
+b<- data_piv %>% group_by(killer_origin)  %>% summarise(mean(vb_manual))
+
+c<- ggplot(b, aes(x=killer_origin, y=`mean(vb_manual)`))+ geom_bar(stat="identity", fill="rosybrown2", color="red3", alpha=0.9 , width=0.4)+  labs(title="Victim blaming by killer origin",x ="Killer origin ", y = "Average victim blaming")+ theme_bw() + scale_x_discrete(labels=c("Italian", "Non Italian")) + ylim(0, 1.3)
+
+c
+
+b<- data_piv %>% group_by(relazione)  %>% summarise(mean(vb_manual))
+d<- ggplot(b, aes(x=relazione, y=`mean(vb_manual)`))+ geom_bar(stat="identity", fill="rosybrown2", color="red3", alpha=0.9, width=0.4)+  labs(title="Victim blaming by relationship",x ="Relationship type ", y = "Average victim blaming")+ theme_bw() + scale_x_discrete(labels=c("other", "relative", "acquaintance", "ex partner", "husband/partner")) + ylim(0, 1.3)
+
+
+b<- data_piv %>% group_by(gender.j)  %>% summarise(mean(vb_manual))
+e<- ggplot(b, aes(x=gender.j, y=`mean(vb_manual)`))+ geom_bar(stat="identity", fill="rosybrown2", color="red3", alpha=0.9, width=0.4)+  labs(title="Victim blaming by gender of journalist",x ="Gender of the journalist ", y = "Average victim blaming")+ theme_bw() + scale_x_discrete(labels=c("both", "man", "unknown", "both")) + ylim(0, 1.3)
+
+e
+
+
+g<- grid.arrange(a, c, d, e, ncol = 2, nrow=2)
+
+ggsave("images/vb_by_variables.png", g,  width = 10, height =10)
+
+```
+
+

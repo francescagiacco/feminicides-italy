@@ -1,0 +1,314 @@
+---
+title: "Cleaning"
+author: "Francesca Giacco"
+date: "2023-02-22"
+output: html_document
+---
+
+```{r}
+#load packages 
+library(tidyverse)
+library(tidyr)
+library(forcats)
+library(stm)
+library(quanteda)
+library(quanteda.textstats)
+library(stringr)
+```
+
+```{r}
+#load data 
+
+#scraped articles
+d20<- read_csv("df2021.csv")
+head(d20)
+
+
+#get one line for every article
+v<- paste("l_", letters, sep="")
+
+d1<- d20 %>% separate(links, v,  "'https?://" )%>% 
+  mutate(victim=tolower(victim))
+
+
+d2<-d1 %>%
+  select(-c(l_a)) %>% 
+  pivot_longer(
+    cols = starts_with("l_"),
+    names_to = "article",
+    names_prefix = "wk",
+    values_to = "link",
+    values_drop_na = TRUE
+  ) 
+
+d3<- d2 %>%  separate(link, c("link", "title", "newspaper"),  "('|\"), " ) 
+
+head(d3)
+
+#save dataset
+write.csv(d3, "d3.csv", row.names=FALSE)
+
+
+#dataset with info about femicide - "Non una di meno"
+info21<- read_csv("data2021.csv")
+
+clean_info<- info21 %>%  
+             mutate(victim=tolower(paste0(Nome," ", Cognome)))
+
+
+
+#merge datasets (cleaned manually)
+
+data21<- read.csv("data2021-new2.csv", sep=';' , header=TRUE) %>% 
+    mutate(victim=tolower(paste0(Nome," ", Cognome)))
+
+d4<- read.csv("d4.csv", sep=';' , header=T)
+  
+
+#merge the two datasets  by victim name 
+merged2<- merge(data21, d4, by="victim", all.x=T) %>% 
+        rename("date"="Data.morte") %>% 
+        mutate(date= as.Date(date, format = "%d-%b-%Y"))  %>% 
+        arrange(date) %>%  
+        mutate(newspaper=gsub('[[:punct:] ]+', ' ',newspaper))
+          
+
+merged3<- merged2 %>% 
+        mutate(link= ifelse(is.na(link), Link.fonte.media, link))
+
+#save dataset - this dataset contains all the links, not the article texts 
+#
+
+write.csv(merged3, "merged.csv", row.names=FALSE)
+
+
+```
+I have added the texts to all the links (manually). In a later stage or for reproduction purpose, better to use the package "Newsplease" on Python. 
+The new file is called "merged-merged.csv"
+
+```{r}
+datac<- read.csv("merged-merged.csv")
+
+colnames(datac)
+
+datac<- datac %>% 
+  mutate(text=str_replace_all(text, "[\r\n]" , " ")) %>% 
+  subset((!is.na(text))) %>% 
+  mutate(tit=str_replace_all(title, "[\r\n]" , " ")) 
+  
+datac <- with(datac, datac[!(text == "" | is.na(text)), ])
+datac <- with(datac, datac[!(tit == "" | is.na(tit)), ]) 
+
+write.csv(datac, "datac.csv", row.names=FALSE)
+
+
+
+```
+
+
+After having added the victim blaming scores, I need to clean the column and keep only the score. 
+
+```{r}
+#dws<-read_csv("datawscores2.csv")
+
+colnames(dws)
+
+#dws<- dws %>% 
+ mutate(tit_vb= as.numeric(str_extract(tit_vb, "[0-9].[0-9]+"))) %>% 
+   mutate(text_vb= as.numeric(str_extract(text_vb, "[0-9].[0-9]+")))
+ 
+ 
+dws<-read_csv("datawscores3.csv")
+
+dws<- dws %>% 
+ mutate(text_vb= as.numeric(str_extract(text_vb, "[0-9].[0-9]+"))) %>% 
+   mutate(text_ab= as.numeric(str_extract(text_ab, "[0-9].[0-9]+"))) %>% 
+      mutate(text_ob= as.numeric(str_extract(text_ob, "[0-9].[0-9]+"))) %>% 
+      mutate(text_cb= as.numeric(str_extract(text_cb, "[0-9].[0-9]+"))) %>% 
+      mutate(text_nb= as.numeric(str_extract(text_nb, "[0-9].[0-9]+")))
+
+dws<- dws %>%
+  mutate(gender.j=as.character(gender.j)) %>% 
+  mutate(journalist=as.character(journalist)) %>% 
+    mutate_at(c("gender.j", "journalist"), ~replace_na(.,"unknown"))
+
+#check that it is numeric
+class(dws$ass_blame)
+#save dataset with clean scores
+
+```
+
+# Divide info about pictures content
+```{r}
+
+table(dws$content)
+
+dws<- dws %>% 
+  #mutate(vict_blamer=round(vict_blame, 2)) %>% 
+  #only differenciate btw italian/non italian
+  mutate(killer_origin=factor(ifelse(Paese.di.origine.presunt..colpevole=="Italia", "ita", "noita"))) %>% 
+  mutate(victim_origin=factor(ifelse(Paese.di.origine.persona.uccisa=="Italia", "ita", "noita"))) %>% 
+  #make age categorical
+  mutate(agev=ifelse(Età.persona.uccisa<5, "baby", 
+             ifelse(Età.persona.uccisa<15, "kid", 
+             ifelse(Età.persona.uccisa<25, "adolescent", 
+             ifelse(Età.persona.uccisa<40,"early_adult", 
+             ifelse(Età.persona.uccisa<60,"adult", 
+             ifelse(Età.persona.uccisa<70 ,"early_old", "old" ))))))) %>% 
+  mutate(agec= ifelse(Età.presunt..colpevole<25, "adolescent", 
+             ifelse(Età.presunt..colpevole<40,"early_adult", 
+             ifelse(Età.presunt..colpevole<60,"adult", 
+             ifelse(Età.presunt..colpevole<70 ,"early_old", "old" )))))%>% 
+  mutate(gender.j=ifelse(gender.j==0, "man",
+                  ifelse(gender.j==1, "woman", 
+                  ifelse(gender.j==2, "both",
+                  ifelse(gender.j==3, "woman",
+                  ifelse(gender.j==4, "man", "unknown" )))))) 
+
+
+  #attention: everytime it multiplies by 100
+  dws<- dws %>% mutate(text_vb=text_vb*100) %>% 
+  #mutate(tit_vb=tit_vb*100) %>% 
+  
+  mutate(relazione= ifelse(Relazione.con.la.persona.uccisa..semplificata.=="marito"|Relazione.con.la.persona.uccisa..semplificata.=="partner", "marito/partner", 
+                    ifelse(Relazione.con.la.persona.uccisa..semplificata.=="altro", "altro", 
+                    ifelse(Relazione.con.la.persona.uccisa..semplificata.=="conoscente", "conoscente", 
+                    ifelse(Relazione.con.la.persona.uccisa..semplificata.=="ex partner", "ex partner", "altro/a parente"))))) %>% 
+   mutate(content=str_replace(content, "victim, killer", "v&a")) %>% 
+   mutate(content=str_replace(content, "killer, victim", "v&a")) %>% 
+  mutate(cvict=ifelse((str_detect(content, "victim")), 1, 0)) %>% 
+  mutate(cvanda=ifelse((str_detect(content, "v&a")), 1, 0)) %>% 
+  mutate(cass=ifelse((str_detect(content, "killer")), 1, 0)) %>% 
+  mutate(ccarpol=ifelse((str_detect(content, "carabinieri")), 1, 
+                ifelse((str_detect(content, "police")), 1,0))) %>% 
+   mutate(camb=ifelse((str_detect(content, "ambulance")), 1, 0)) 
+ 
+
+head(dws)
+
+
+
+write.csv(dws, "dws_clean.csv", row.names=FALSE)
+
+```
+
+
+# prepare data to use the model at sentence level. 
+```{r}
+
+head(dws)
+n<-c(1:100)
+
+v<- paste("n_", n, sep="")
+
+sent_datac<- dws %>% 
+  mutate(text2=text) %>% 
+           separate(text2, v,  "\\." )
+ 
+
+sent_datac<-sent_datac %>%
+  pivot_longer(
+    cols = starts_with("n_"),
+    names_to = "code",
+    names_prefix = "wk",
+    values_to = "sentence",
+    values_drop_na = TRUE
+  ) 
+
+sent_datac <- with(sent_datac, sent_datac[!(sentence == "" | is.na(sentence)), ])
+
+sent_datac<- sent_datac %>% 
+             mutate(n_char= nchar(sentence)) %>% 
+             subset( n_char>34)
+            
+
+nchar(sent_datac$sentence[7])
+                   
+#save dataset
+write.csv(sent_datac, "datawsent.csv", row.names=FALSE)
+
+
+head(sent_datac)
+```
+
+Now that I have a score for every sentence, mean over each article. 
+
+```{r}
+dws2<-read_csv("datawscores3.csv")
+
+colnames(dws)
+
+dws<- dws %>% 
+ mutate(sentence_vb= as.numeric(str_extract(sentence_vb, "[0-9].[0-9]+"))) 
+   
+
+ggplot(dws, aes(x=sentence_vb)) + geom_histogram()
+
+#save dataset with clean scores
+#write.csv(dws, "dws_clean3.csv", row.names=FALSE)
+
+dws2<- dws %>% 
+  group_by(title) %>% 
+  summarise(mean(sentence_vb)) %>% 
+  mutate(ms=dws2$`mean(sentence_vb)`)
+
+         
+ggplot(dws2, aes(x=ms)) + geom_histogram()
+
+       
+       
+```
+
+
+# With data obtained from Newsplease
+```{r}
+np<- read_csv("newsplease.csv") %>% 
+  select(c("title", "text_new" ))
+
+#merge the two datasets  by victim name 
+merged_new<- merge( dws,np,  by="title", all.x=T) %>% 
+  rename("article_n"="...1")
+       
+          
+```
+
+
+```{r}
+
+n<-c(1:30)
+
+v<- paste("n_", n, sep="")
+
+para<- merged_new %>% 
+separate(text_new, v,  "\n" )
+
+
+para<-para%>%
+  pivot_longer(
+    cols = starts_with("n_"),
+    names_to = "code",
+    names_prefix = "wk",
+    values_to = "paragraph",
+    values_drop_na = TRUE
+  ) 
+
+para<- para %>%  
+  mutate(len_par=nchar(paragraph))
+
+ggplot(para, aes(x=len_par))+ geom_histogram()
+
+table(para$code)
+
+
+para2<- para %>%  
+  subset(nchar(paragraph)>50)
+
+para <- with(para, paragraph[!(paragraph == "" | is.na(parapr)), ])
+
+
+write.csv(para, "paragraphs.csv", row.names=FALSE)
+```
+
+
+
+
